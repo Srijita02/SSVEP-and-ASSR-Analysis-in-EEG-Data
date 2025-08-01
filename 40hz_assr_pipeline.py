@@ -1,8 +1,3 @@
-# Auditory Steady-State Response (ASSR) - 40 Hz EEG Analysis Pipeline
-# Author: [Your Name or Lab]
-# Description: This script performs time series visualization, PSD estimation,
-#              sine wave injection, and SNR evaluation for 40 Hz ASSR EEG data.
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
