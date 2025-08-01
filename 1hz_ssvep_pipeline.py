@@ -183,3 +183,65 @@ plt.suptitle("1 Hz PSD at Occipital Channels")
 plt.tight_layout()
 plt.savefig("1hz_occipital_subplots.png", dpi=300)
 plt.show()
+
+# --- 1 Hz SNR Statistical Test (Oz Channel, Injected) ---
+from scipy.stats import ttest_1samp
+
+segment_duration_sec = 10
+min_samples = fs * segment_duration_sec
+sine_freq = 1  # Frequency of injected sine wave
+
+snr_values = []
+freqs = None
+
+for subj_id, data in all_subjects_data.items():
+    eeg = data["eeg"]
+    if data["samples"] < min_samples:
+        continue
+
+    # Identify Oz channel
+    labels_upper = [lbl.strip().upper() for lbl in data["labels"]]
+    if "OZ" not in labels_upper:
+        continue
+    oz_idx = labels_upper.index("OZ")
+
+    # Extract and inject signal
+    oz_signal = eeg[:min_samples, oz_idx]
+    t = np.arange(min_samples) / fs
+    amp = np.std(oz_signal) * np.sqrt(2)
+    injected = oz_signal + amp * np.sin(2 * np.pi * sine_freq * t)
+
+    # Compute PSD
+    f, Pxx = welch(injected, fs=fs, nperseg=16384)
+    if freqs is None:
+        freqs = f
+
+    # Define signal and noise bands
+    signal_band = (f >= 0.95) & (f <= 1.05)
+    noise_band = ((f >= 0.7) & (f < 0.9)) | ((f > 1.1) & (f <= 1.3))
+
+    signal_power = np.mean(Pxx[signal_band])
+    noise_power = np.mean(Pxx[noise_band])
+
+    if noise_power > 0:
+        snr = signal_power / noise_power
+        snr_values.append(snr)
+
+# Perform statistical test
+if snr_values:
+    snr_values = np.array(snr_values)
+    log_snr = np.log10(snr_values)
+    t_stat, p_val = ttest_1samp(log_snr, popmean=0)
+
+    print("\nOne-sample t-test for 1 Hz SNR (Oz channel, injected):")
+    print(f"Subjects: {len(log_snr)}")
+    print(f"Mean log10(SNR): {np.mean(log_snr):.3f}")
+    print(f"t-statistic: {t_stat:.3f}")
+    print(f"p-value: {p_val:.6f}")
+
+    if p_val < 0.05:
+        print("Result: Significant. SNR at 1 Hz is reliably above noise baseline.")
+    else:
+        print("Result: Not significant. SNR is not significantly above baseline.")
+else:
+    print("No valid subjects with Oz channel and sufficient samples for SNR analysis.")
